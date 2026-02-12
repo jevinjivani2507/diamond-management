@@ -4,6 +4,7 @@ import { memo, useCallback, useState } from "react";
 import {
   CalendarDays,
   Diamond,
+  FlaskConical,
   Hash,
   Palette,
   Sparkles,
@@ -27,19 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDiamondStore } from "@/lib/store";
-
-const SHAPES = [
-  "Round",
-  "Princess",
-  "Emerald",
-  "Oval",
-  "Marquise",
-  "Pear",
-  "Cushion",
-  "Asscher",
-  "Radiant",
-  "Heart",
-] as const;
+import { DatePicker } from "@/components/date-picker";
 
 const PURITIES = [
   "IF",
@@ -54,6 +43,8 @@ const PURITIES = [
 ] as const;
 
 const COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M"] as const;
+
+const LABS = ["IGI", "GIA"] as const;
 
 interface AddReceiveDialogProps {
   kapaanId: string;
@@ -76,6 +67,7 @@ function AddReceiveDialogInner({
   const [weight, setWeight] = useState("");
   const [purity, setPurity] = useState("");
   const [color, setColor] = useState("");
+  const [lab, setLab] = useState("");
 
   const resetForm = useCallback(() => {
     setDate(new Date().toISOString().slice(0, 10));
@@ -84,12 +76,14 @@ function AddReceiveDialogInner({
     setWeight("");
     setPurity("");
     setColor("");
+    setLab("");
   }, []);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      if (!date || !shape || !pcs || !weight || !purity || !color) return;
+      if (!date || !shape || !pcs || !weight || !purity || !color || !lab)
+        return;
 
       addReceive({
         kapaanId,
@@ -99,12 +93,25 @@ function AddReceiveDialogInner({
         weight: Number(weight),
         purity,
         color,
+        lab: lab as "IGI" | "GIA",
       });
 
       resetForm();
       onOpenChange(false);
     },
-    [kapaanId, date, shape, pcs, weight, purity, color, addReceive, resetForm, onOpenChange]
+    [
+      kapaanId,
+      date,
+      shape,
+      pcs,
+      weight,
+      purity,
+      color,
+      lab,
+      addReceive,
+      resetForm,
+      onOpenChange,
+    ]
   );
 
   const handleOpenChange = useCallback(
@@ -115,7 +122,7 @@ function AddReceiveDialogInner({
     [resetForm, onOpenChange]
   );
 
-  const isValid = date && shape && pcs && weight && purity && color;
+  const isValid = date && shape && pcs && weight && purity && color && lab;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -130,7 +137,10 @@ function AddReceiveDialogInner({
               <div>
                 <DialogTitle className="text-base">Add Receive</DialogTitle>
                 <DialogDescription className="text-xs mt-0.5">
-                  Kapaan <span className="font-semibold text-foreground">{kapaanNo}</span>
+                  Kapaan{" "}
+                  <span className="font-semibold text-foreground">
+                    {kapaanNo}
+                  </span>
                 </DialogDescription>
               </div>
             </div>
@@ -140,44 +150,57 @@ function AddReceiveDialogInner({
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-6 pb-6 pt-4">
           <div className="space-y-5">
-            {/* Date — full width */}
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="receiveDate"
-                className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
-              >
-                <CalendarDays className="inline size-3.5 mr-1 -mt-0.5" />
-                Date
-              </Label>
-              <Input
-                id="receiveDate"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="h-10"
-                required
-              />
+            {/* Date & Lab — 2 columns */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <CalendarDays className="inline size-3.5 mr-1 -mt-0.5" />
+                  Date
+                </Label>
+                <DatePicker
+                  value={date}
+                  onChange={setDate}
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <FlaskConical className="inline size-3.5 mr-1 -mt-0.5" />
+                  Lab
+                </Label>
+                <Select value={lab} onValueChange={setLab}>
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="Select lab" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LABS.map((l) => (
+                      <SelectItem key={l} value={l}>
+                        {l}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Shape & Pcs — 2 columns */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <Label
+                  htmlFor="receiveShape"
+                  className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
+                >
                   <Diamond className="inline size-3.5 mr-1 -mt-0.5" />
                   Shape
                 </Label>
-                <Select value={shape} onValueChange={setShape}>
-                  <SelectTrigger className="h-10 w-full">
-                    <SelectValue placeholder="Select shape" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SHAPES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="receiveShape"
+                  placeholder="e.g. Round, Oval"
+                  value={shape}
+                  onChange={(e) => setShape(e.target.value)}
+                  className="h-10"
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <Label

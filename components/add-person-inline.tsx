@@ -27,17 +27,27 @@ function AddPersonInlineInner({ onPersonAdded, label }: AddPersonInlineProps) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
-  const handleSubmit = useCallback(
+  const resetAndClose = useCallback(() => {
+    setName("");
+    setPhone("");
+    setOpen(false);
+  }, []);
+
+  const createPerson = useCallback(() => {
+    if (!name.trim()) return null;
+    const person = addPerson(name.trim(), phone.trim() || undefined);
+    return person;
+  }, [name, phone, addPerson]);
+
+  const handleAdd = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      if (!name.trim()) return;
-      const person = addPerson(name.trim(), phone.trim() || undefined);
+      const person = createPerson();
+      if (!person) return;
       onPersonAdded?.(person.id);
-      setName("");
-      setPhone("");
-      setOpen(false);
+      resetAndClose();
     },
-    [name, phone, addPerson, onPersonAdded]
+    [createPerson, onPersonAdded, resetAndClose]
   );
 
   return (
@@ -49,17 +59,26 @@ function AddPersonInlineInner({ onPersonAdded, label }: AddPersonInlineProps) {
             {label}
           </Button>
         ) : (
-          <Button type="button" variant="outline" size="icon" className="shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+          >
             <Plus className="size-4" />
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent
+        className="sm:max-w-sm"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Add Person</DialogTitle>
           <DialogDescription>Add a new person to the list.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="grid gap-4">
+        <form onSubmit={handleAdd} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="personName">Name</Label>
             <Input
@@ -80,10 +99,14 @@ function AddPersonInlineInner({ onPersonAdded, label }: AddPersonInlineProps) {
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit">Add</Button>
+            <Button type="submit">Add Person</Button>
           </DialogFooter>
         </form>
       </DialogContent>

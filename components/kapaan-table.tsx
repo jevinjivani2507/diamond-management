@@ -7,7 +7,8 @@ import {
   useState,
   type MouseEvent,
 } from "react";
-import { Diamond, PackageOpen, Plus, Search } from "lucide-react";
+import moment from "moment";
+import { Diamond, PackageOpen, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -17,7 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,6 +27,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   useDiamondStore,
   selectKapaans,
@@ -38,6 +48,8 @@ import {
 import { AddKapaanDialog } from "@/components/add-kapaan-dialog";
 import { AddReceiveDialog } from "@/components/add-receive-dialog";
 import { ReceiveSheet } from "@/components/receive-sheet";
+import { MultiSelectKapaan } from "@/components/multi-select-kapaan";
+import { DatePicker } from "@/components/date-picker";
 
 // ── Memoised Row ───────────────────────────────────────────────────────────
 
@@ -47,6 +59,8 @@ interface KapaanRowProps {
   receiveCount: number;
   onRowClick: (kapaan: Kapaan) => void;
   onAddReceive: (kapaan: Kapaan) => void;
+  onEdit: (kapaan: Kapaan) => void;
+  onDelete: (kapaan: Kapaan) => void;
 }
 
 const KapaanRow = memo(function KapaanRow({
@@ -55,10 +69,14 @@ const KapaanRow = memo(function KapaanRow({
   receiveCount,
   onRowClick,
   onAddReceive,
+  onEdit,
+  onDelete,
 }: KapaanRowProps) {
   const handleRowClick = useCallback(() => {
     onRowClick(kapaan);
   }, [kapaan, onRowClick]);
+
+  const stop = (e: MouseEvent) => e.stopPropagation();
 
   const handleAddReceive = useCallback(
     (e: MouseEvent) => {
@@ -68,19 +86,30 @@ const KapaanRow = memo(function KapaanRow({
     [kapaan, onAddReceive]
   );
 
-  const formattedDate = new Date(kapaan.date).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const handleEdit = useCallback(
+    (e: MouseEvent) => {
+      e.stopPropagation();
+      onEdit(kapaan);
+    },
+    [kapaan, onEdit]
+  );
+
+  const handleDelete = useCallback(
+    (e: MouseEvent) => {
+      e.stopPropagation();
+      onDelete(kapaan);
+    },
+    [kapaan, onDelete]
+  );
+
+  const formattedDate = moment(kapaan.date).format("DD MMM YYYY");
 
   return (
-    <TableRow
-      className="cursor-pointer"
-      onClick={handleRowClick}
-    >
+    <TableRow className="cursor-pointer" onClick={handleRowClick}>
       <TableCell className="font-semibold">{kapaan.kapaanNo}</TableCell>
-      <TableCell className="text-muted-foreground text-sm">{formattedDate}</TableCell>
+      <TableCell className="text-muted-foreground text-sm">
+        {formattedDate}
+      </TableCell>
       <TableCell className="text-right">{kapaan.pcs}</TableCell>
       <TableCell className="text-right">{kapaan.weight}</TableCell>
       <TableCell>{personName}</TableCell>
@@ -88,15 +117,33 @@ const KapaanRow = memo(function KapaanRow({
         <Badge variant="outline">{receiveCount}</Badge>
       </TableCell>
       <TableCell>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 gap-1"
-          onClick={handleAddReceive}
-        >
-          <Plus className="size-3.5" />
-          Receive
-        </Button>
+        <div className="flex items-center gap-1" onClick={stop}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1"
+            onClick={handleAddReceive}
+          >
+            <Plus className="size-3.5" />
+            Receive
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={handleEdit}
+          >
+            <Pencil className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 text-destructive hover:text-destructive"
+            onClick={handleDelete}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -109,18 +156,33 @@ function KapaanTableInner() {
   const persons = useDiamondStore(selectPersons);
   const receives = useDiamondStore(selectReceives);
   const hydrated = useDiamondStore(selectHydrated);
+  const removeKapaan = useDiamondStore((s) => s.removeKapaan);
 
   // Filter state
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedKapaanIds, setSelectedKapaanIds] = useState<string[]>([]);
   const [personFilter, setPersonFilter] = useState("all");
-  const [weightMin, setWeightMin] = useState("");
-  const [weightMax, setWeightMax] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // Dialog state
   const [addKapaanOpen, setAddKapaanOpen] = useState(false);
   const [receiveTarget, setReceiveTarget] = useState<Kapaan | null>(null);
+  const [editTarget, setEditTarget] = useState<Kapaan | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Kapaan | null>(null);
   const [sheetKapaan, setSheetKapaan] = useState<Kapaan | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Multi-select options (memoised, unique by kapaanNo)
+  const kapaanOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return kapaans.reduce<{ value: string; label: string }[]>((acc, k) => {
+      if (!seen.has(k.kapaanNo)) {
+        seen.add(k.kapaanNo);
+        acc.push({ value: k.id, label: k.kapaanNo });
+      }
+      return acc;
+    }, []);
+  }, [kapaans]);
 
   // Lookup maps (memoised)
   const personMap = useMemo(
@@ -136,20 +198,37 @@ function KapaanTableInner() {
     return map;
   }, [receives]);
 
+  const hasFilters =
+    selectedKapaanIds.length > 0 ||
+    personFilter !== "all" ||
+    dateFrom !== "" ||
+    dateTo !== "";
+
+  const clearFilters = useCallback(() => {
+    setSelectedKapaanIds([]);
+    setPersonFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  }, []);
+
+  // Build a set of selected kapaanNo values for filtering
+  const selectedKapaanNos = useMemo(() => {
+    if (selectedKapaanIds.length === 0) return null;
+    const idToNo = new Map(kapaans.map((k) => [k.id, k.kapaanNo]));
+    return new Set(selectedKapaanIds.map((id) => idToNo.get(id)).filter(Boolean));
+  }, [selectedKapaanIds, kapaans]);
+
   // Filtered kapaans
   const filteredKapaans = useMemo(() => {
     return kapaans.filter((k) => {
-      if (
-        searchQuery &&
-        !k.kapaanNo.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      if (selectedKapaanNos && !selectedKapaanNos.has(k.kapaanNo))
         return false;
       if (personFilter !== "all" && k.personId !== personFilter) return false;
-      if (weightMin && k.weight < Number(weightMin)) return false;
-      if (weightMax && k.weight > Number(weightMax)) return false;
+      if (dateFrom && k.date < dateFrom) return false;
+      if (dateTo && k.date > dateTo) return false;
       return true;
     });
-  }, [kapaans, searchQuery, personFilter, weightMin, weightMax]);
+  }, [kapaans, selectedKapaanNos, personFilter, dateFrom, dateTo]);
 
   // Handlers
   const handleRowClick = useCallback((kapaan: Kapaan) => {
@@ -165,9 +244,28 @@ function KapaanTableInner() {
     if (!open) setReceiveTarget(null);
   }, []);
 
+  const handleEdit = useCallback((kapaan: Kapaan) => {
+    setEditTarget(kapaan);
+  }, []);
+
+  const handleEditClose = useCallback((open: boolean) => {
+    if (!open) setEditTarget(null);
+  }, []);
+
+  const handleDelete = useCallback((kapaan: Kapaan) => {
+    setDeleteTarget(kapaan);
+  }, []);
+
+  const confirmDelete = useCallback(() => {
+    if (deleteTarget) {
+      removeKapaan(deleteTarget.id);
+      setDeleteTarget(null);
+    }
+  }, [deleteTarget, removeKapaan]);
+
   return (
     <>
-      <div className="rounded-xl border bg-white shadow-sm">
+      <div className="rounded-xl border bg-white shadow-sm min-w-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h1 className="text-lg font-semibold">Kapaan Management</h1>
@@ -178,20 +276,28 @@ function KapaanTableInner() {
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-3 gap-4 border-b p-4">
+        <div className="grid grid-cols-4 gap-3 border-b p-4 relative">
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute top-1.5 right-2 h-7 gap-1 text-xs text-muted-foreground"
+              onClick={clearFilters}
+            >
+              <X className="size-3" />
+              Clear filters
+            </Button>
+          )}
           <div>
             <label className="mb-1.5 block text-sm font-medium">
               Kapaan No.
             </label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search kapaan"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
-              />
-            </div>
+            <MultiSelectKapaan
+              options={kapaanOptions}
+              selected={selectedKapaanIds}
+              onChange={setSelectedKapaanIds}
+              placeholder="All Kapaans"
+            />
           </div>
 
           <div>
@@ -213,24 +319,22 @@ function KapaanTableInner() {
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">
-              Weight (ct)
+              Date From
             </label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Min"
-                type="number"
-                step="0.01"
-                value={weightMin}
-                onChange={(e) => setWeightMin(e.target.value)}
-              />
-              <Input
-                placeholder="Max"
-                type="number"
-                step="0.01"
-                value={weightMax}
-                onChange={(e) => setWeightMax(e.target.value)}
-              />
-            </div>
+            <DatePicker
+              value={dateFrom}
+              onChange={setDateFrom}
+              placeholder="From"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Date To</label>
+            <DatePicker
+              value={dateTo}
+              onChange={setDateTo}
+              placeholder="To"
+            />
           </div>
         </div>
 
@@ -299,6 +403,8 @@ function KapaanTableInner() {
                     receiveCount={receiveCountMap.get(k.id) ?? 0}
                     onRowClick={handleRowClick}
                     onAddReceive={handleAddReceive}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
                   />
                 ))
               )}
@@ -308,7 +414,19 @@ function KapaanTableInner() {
       </div>
 
       {/* Dialogs / Sheet */}
-      <AddKapaanDialog open={addKapaanOpen} onOpenChange={setAddKapaanOpen} />
+      <AddKapaanDialog
+        open={addKapaanOpen}
+        onOpenChange={setAddKapaanOpen}
+      />
+
+      {editTarget && (
+        <AddKapaanDialog
+          key={editTarget.id}
+          kapaan={editTarget}
+          open={!!editTarget}
+          onOpenChange={handleEditClose}
+        />
+      )}
 
       {receiveTarget && (
         <AddReceiveDialog
@@ -324,6 +442,32 @@ function KapaanTableInner() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
       />
+
+      {/* Delete Confirmation */}
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Kapaan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete{" "}
+              <span className="font-semibold">{deleteTarget?.kapaanNo}</span>{" "}
+              and all its receive entries. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

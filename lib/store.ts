@@ -20,6 +20,7 @@ export interface Receive {
   weight: number;
   purity: string;
   color: string;
+  lab: "IGI" | "GIA";
 }
 
 export interface Kapaan {

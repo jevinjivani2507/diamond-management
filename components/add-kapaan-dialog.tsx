@@ -19,23 +19,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useDiamondStore, selectPersons } from "@/lib/store";
+import { useDiamondStore, selectPersons, type Kapaan } from "@/lib/store";
 import { AddPersonInline } from "@/components/add-person-inline";
+import { DatePicker } from "@/components/date-picker";
 
 interface AddKapaanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Pass a kapaan to switch to edit mode */
+  kapaan?: Kapaan | null;
 }
 
-function AddKapaanDialogInner({ open, onOpenChange }: AddKapaanDialogProps) {
+function AddKapaanDialogInner({
+  open,
+  onOpenChange,
+  kapaan,
+}: AddKapaanDialogProps) {
   const persons = useDiamondStore(selectPersons);
   const addKapaan = useDiamondStore((s) => s.addKapaan);
+  const updateKapaan = useDiamondStore((s) => s.updateKapaan);
 
-  const [kapaanNo, setKapaanNo] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [pcs, setPcs] = useState("");
-  const [weight, setWeight] = useState("");
-  const [personId, setPersonId] = useState("");
+  const isEdit = !!kapaan;
+
+  const [kapaanNo, setKapaanNo] = useState(kapaan?.kapaanNo ?? "");
+  const [date, setDate] = useState(
+    kapaan?.date ?? new Date().toISOString().slice(0, 10)
+  );
+  const [pcs, setPcs] = useState(kapaan ? String(kapaan.pcs) : "");
+  const [weight, setWeight] = useState(kapaan ? String(kapaan.weight) : "");
+  const [personId, setPersonId] = useState(kapaan?.personId ?? "");
 
   const resetForm = useCallback(() => {
     setKapaanNo("");
@@ -45,23 +57,51 @@ function AddKapaanDialogInner({ open, onOpenChange }: AddKapaanDialogProps) {
     setPersonId("");
   }, []);
 
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!kapaanNo || !date || !pcs || !weight || !personId) return;
+  const submitWithPerson = useCallback(
+    (pid: string) => {
+      if (!kapaanNo || !date || !pcs || !weight || !pid) return;
 
-      addKapaan({
-        kapaanNo,
-        date,
-        pcs: Number(pcs),
-        weight: Number(weight),
-        personId,
-      });
+      if (isEdit && kapaan) {
+        updateKapaan(kapaan.id, {
+          kapaanNo,
+          date,
+          pcs: Number(pcs),
+          weight: Number(weight),
+          personId: pid,
+        });
+      } else {
+        addKapaan({
+          kapaanNo,
+          date,
+          pcs: Number(pcs),
+          weight: Number(weight),
+          personId: pid,
+        });
+      }
 
       resetForm();
       onOpenChange(false);
     },
-    [kapaanNo, date, pcs, weight, personId, addKapaan, resetForm, onOpenChange]
+    [
+      kapaanNo,
+      date,
+      pcs,
+      weight,
+      isEdit,
+      kapaan,
+      addKapaan,
+      updateKapaan,
+      resetForm,
+      onOpenChange,
+    ]
+  );
+
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      submitWithPerson(personId);
+    },
+    [personId, submitWithPerson]
   );
 
   const handleOpenChange = useCallback(
@@ -72,12 +112,24 @@ function AddKapaanDialogInner({ open, onOpenChange }: AddKapaanDialogProps) {
     [resetForm, onOpenChange]
   );
 
+  /** Called from AddPersonInline's "Add & Submit Kapaan" button */
+  const handleAddAndSubmitParent = useCallback(
+    (newPersonId: string) => {
+      submitWithPerson(newPersonId);
+    },
+    [submitWithPerson]
+  );
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add New Kapaan</DialogTitle>
-          <DialogDescription>Enter the kapaan details below.</DialogDescription>
+          <DialogTitle>{isEdit ? "Edit Kapaan" : "Add New Kapaan"}</DialogTitle>
+          <DialogDescription>
+            {isEdit
+              ? `Update the details for ${kapaan?.kapaanNo}.`
+              : "Enter the kapaan details below."}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="grid gap-4">
@@ -93,14 +145,8 @@ function AddKapaanDialogInner({ open, onOpenChange }: AddKapaanDialogProps) {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="kapaanDate">Date</Label>
-              <Input
-                id="kapaanDate"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-              />
+              <Label>Date</Label>
+              <DatePicker value={date} onChange={setDate} />
             </div>
           </div>
 
@@ -133,7 +179,7 @@ function AddKapaanDialogInner({ open, onOpenChange }: AddKapaanDialogProps) {
           </div>
 
           <div className="grid gap-2">
-            <Label>Person</Label>ß{" "}
+            <Label>Person</Label>
             {persons.length === 0 ? (
               <div className="flex flex-col items-center gap-2.5 rounded-lg border border-dashed p-5">
                 <p className="text-sm text-muted-foreground">
@@ -171,7 +217,9 @@ function AddKapaanDialogInner({ open, onOpenChange }: AddKapaanDialogProps) {
             >
               Cancel
             </Button>
-            <Button type="submit">Add Kapaan</Button>
+            <Button type="submit">
+              {isEdit ? "Save Changes" : "Add Kapaan"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

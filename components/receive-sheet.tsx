@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
+import moment from "moment";
 import {
   Sheet,
   SheetContent,
@@ -110,17 +111,14 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
                   <TableHead className="text-right">Weight</TableHead>
                   <TableHead>Purity</TableHead>
                   <TableHead>Color</TableHead>
+                  <TableHead>Lab</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {receives.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="text-xs">
-                      {new Date(r.date).toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      {moment(r.date).format("DD MMM YYYY")}
                     </TableCell>
                     <TableCell>
                       <span
@@ -141,6 +139,18 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">{r.color}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={
+                          r.lab === "GIA"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        }
+                        variant="outline"
+                      >
+                        {r.lab}
+                      </Badge>
                     </TableCell>
                   </TableRow>
                 ))}
