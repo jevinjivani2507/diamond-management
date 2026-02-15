@@ -82,18 +82,16 @@ function AddReceiveDialogInner({
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      if (!date || !shape || !pcs || !weight || !purity || !color || !lab)
-        return;
 
       addReceive({
         kapaanId,
         date,
         shape,
-        pcs: Number(pcs),
-        weight: Number(weight),
+        pcs: pcs ? Number(pcs) : 0,
+        weight: weight ? Number(weight) : 0,
         purity,
         color,
-        lab: lab as "IGI" | "GIA",
+        lab,
       });
 
       resetForm();
@@ -121,8 +119,6 @@ function AddReceiveDialogInner({
     },
     [resetForm, onOpenChange]
   );
-
-  const isValid = date && shape && pcs && weight && purity && color && lab;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -199,7 +195,6 @@ function AddReceiveDialogInner({
                   value={shape}
                   onChange={(e) => setShape(e.target.value)}
                   className="h-10"
-                  required
                 />
               </div>
               <div className="space-y-1.5">
@@ -218,7 +213,6 @@ function AddReceiveDialogInner({
                   onChange={(e) => setPcs(e.target.value)}
                   className="h-10"
                   min={1}
-                  required
                 />
               </div>
             </div>
@@ -242,7 +236,6 @@ function AddReceiveDialogInner({
                   onChange={(e) => setWeight(e.target.value)}
                   className="h-10"
                   min={0}
-                  required
                 />
               </div>
               <div className="space-y-1.5">
@@ -293,7 +286,7 @@ function AddReceiveDialogInner({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!isValid} className="min-w-[120px]">
+            <Button type="submit" className="min-w-[120px]">
               Add Receive
             </Button>
           </div>

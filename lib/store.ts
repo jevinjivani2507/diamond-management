@@ -20,7 +20,7 @@ export interface Receive {
   weight: number;
   purity: string;
   color: string;
-  lab: "IGI" | "GIA";
+  lab: string;
 }
 
 export interface Kapaan {
@@ -46,7 +46,7 @@ interface DiamondActions {
   updateKapaan: (id: string, data: Partial<Omit<Kapaan, "id">>) => void;
   removeKapaan: (id: string) => void;
   addPerson: (name: string, phone?: string) => Person;
-  addReceive: (receive: Omit<Receive, "id">) => void;
+  addReceive: (receive: Omit<Receive, "id"> & { kapaanId: string }) => void;
   removeReceive: (id: string) => void;
 }
 
