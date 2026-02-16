@@ -44,6 +44,7 @@ import {
   selectReceives,
   selectHydrated,
   type Kapaan,
+  type Receive,
 } from "@/lib/store";
 import { AddKapaanDialog } from "@/components/add-kapaan-dialog";
 import { AddReceiveDialog } from "@/components/add-receive-dialog";
@@ -196,6 +197,7 @@ function KapaanTableInner() {
   const [deleteTarget, setDeleteTarget] = useState<Kapaan | null>(null);
   const [sheetKapaan, setSheetKapaan] = useState<Kapaan | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [editReceiveTarget, setEditReceiveTarget] = useState<Receive | null>(null);
 
   // Multi-select options (memoised, unique by kapaanNo)
   const kapaanOptions = useMemo(() => {
@@ -336,6 +338,10 @@ function KapaanTableInner() {
 
   const handleDelete = useCallback((kapaan: Kapaan) => {
     setDeleteTarget(kapaan);
+  }, []);
+
+  const handleEditReceiveClose = useCallback((open: boolean) => {
+    if (!open) setEditReceiveTarget(null);
   }, []);
 
   const confirmDelete = useCallback(() => {
@@ -654,6 +660,7 @@ function KapaanTableInner() {
                     <TableHead>Purity</TableHead>
                     <TableHead>Color</TableHead>
                     <TableHead>Lab</TableHead>
+                    <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -719,6 +726,16 @@ function KapaanTableInner() {
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7"
+                            onClick={() => setEditReceiveTarget(r)}
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -752,6 +769,20 @@ function KapaanTableInner() {
           onOpenChange={handleReceiveDialogClose}
         />
       )}
+
+      {editReceiveTarget && (() => {
+        const rcvKapaan = kapaanMap.get(editReceiveTarget.kapaanId);
+        return (
+          <AddReceiveDialog
+            key={editReceiveTarget.id}
+            kapaanId={editReceiveTarget.kapaanId}
+            kapaanNo={rcvKapaan?.kapaanNo ?? "—"}
+            receive={editReceiveTarget}
+            open={!!editReceiveTarget}
+            onOpenChange={handleEditReceiveClose}
+          />
+        );
+      })()}
 
       <ReceiveSheet
         kapaan={sheetKapaan}

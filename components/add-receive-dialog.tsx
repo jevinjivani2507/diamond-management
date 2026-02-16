@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useDiamondStore } from "@/lib/store";
+import { useDiamondStore, type Receive } from "@/lib/store";
 import { DatePicker } from "@/components/date-picker";
 
 const PURITIES = [
@@ -51,6 +51,8 @@ interface AddReceiveDialogProps {
   kapaanNo: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Pass a receive to switch to edit mode */
+  receive?: Receive | null;
 }
 
 function AddReceiveDialogInner({
@@ -58,16 +60,24 @@ function AddReceiveDialogInner({
   kapaanNo,
   open,
   onOpenChange,
+  receive,
 }: AddReceiveDialogProps) {
   const addReceive = useDiamondStore((s) => s.addReceive);
+  const updateReceive = useDiamondStore((s) => s.updateReceive);
 
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [shape, setShape] = useState("");
-  const [pcs, setPcs] = useState("");
-  const [weight, setWeight] = useState("");
-  const [purity, setPurity] = useState("");
-  const [color, setColor] = useState("");
-  const [lab, setLab] = useState("");
+  const isEdit = !!receive;
+
+  const [date, setDate] = useState(
+    receive?.date ?? new Date().toISOString().slice(0, 10)
+  );
+  const [shape, setShape] = useState(receive?.shape ?? "");
+  const [pcs, setPcs] = useState(receive ? String(receive.pcs || "") : "");
+  const [weight, setWeight] = useState(
+    receive ? String(receive.weight || "") : ""
+  );
+  const [purity, setPurity] = useState(receive?.purity ?? "");
+  const [color, setColor] = useState(receive?.color ?? "");
+  const [lab, setLab] = useState(receive?.lab ?? "");
 
   const resetForm = useCallback(() => {
     setDate(new Date().toISOString().slice(0, 10));
@@ -83,16 +93,28 @@ function AddReceiveDialogInner({
     (e: React.FormEvent) => {
       e.preventDefault();
 
-      addReceive({
-        kapaanId,
-        date,
-        shape,
-        pcs: pcs ? Number(pcs) : 0,
-        weight: weight ? Number(weight) : 0,
-        purity,
-        color,
-        lab,
-      });
+      if (isEdit && receive) {
+        updateReceive(receive.id, {
+          date,
+          shape,
+          pcs: pcs ? Number(pcs) : 0,
+          weight: weight ? Number(weight) : 0,
+          purity,
+          color,
+          lab,
+        });
+      } else {
+        addReceive({
+          kapaanId,
+          date,
+          shape,
+          pcs: pcs ? Number(pcs) : 0,
+          weight: weight ? Number(weight) : 0,
+          purity,
+          color,
+          lab,
+        });
+      }
 
       resetForm();
       onOpenChange(false);
@@ -106,7 +128,10 @@ function AddReceiveDialogInner({
       purity,
       color,
       lab,
+      isEdit,
+      receive,
       addReceive,
+      updateReceive,
       resetForm,
       onOpenChange,
     ]
@@ -131,7 +156,9 @@ function AddReceiveDialogInner({
                 <Diamond className="size-4" />
               </div>
               <div>
-                <DialogTitle className="text-base">Add Receive</DialogTitle>
+                <DialogTitle className="text-base">
+                  {isEdit ? "Edit Receive" : "Add Receive"}
+                </DialogTitle>
                 <DialogDescription className="text-xs mt-0.5">
                   Kapaan{" "}
                   <span className="font-semibold text-foreground">
@@ -287,7 +314,7 @@ function AddReceiveDialogInner({
               Cancel
             </Button>
             <Button type="submit" className="min-w-[120px]">
-              Add Receive
+              {isEdit ? "Save Changes" : "Add Receive"}
             </Button>
           </div>
         </form>

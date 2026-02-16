@@ -47,6 +47,7 @@ interface DiamondActions {
   removeKapaan: (id: string) => void;
   addPerson: (name: string, phone?: string) => Person;
   addReceive: (receive: Omit<Receive, "id"> & { kapaanId: string }) => void;
+  updateReceive: (id: string, data: Partial<Omit<Receive, "id">>) => void;
   removeReceive: (id: string) => void;
 }
 
@@ -97,6 +98,14 @@ export const useDiamondStore = create<DiamondStore>()(
       addReceive: (data) =>
         set((state) => {
           state.receives.push({ ...data, id: uid() });
+        }),
+
+      updateReceive: (id, data) =>
+        set((state) => {
+          const idx = state.receives.findIndex((r) => r.id === id);
+          if (idx !== -1) {
+            Object.assign(state.receives[idx], data);
+          }
         }),
 
       removeReceive: (id) =>

@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useMemo, useState } from "react";
 import moment from "moment";
-import { Filter, X } from "lucide-react";
+import { Filter, Pencil, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -32,7 +32,9 @@ import {
   selectReceives,
   selectPersons,
   type Kapaan,
+  type Receive,
 } from "@/lib/store";
+import { AddReceiveDialog } from "@/components/add-receive-dialog";
 
 interface ReceiveSheetProps {
   kapaan: Kapaan | null;
@@ -57,11 +59,18 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
   const allReceives = useDiamondStore(selectReceives);
   const persons = useDiamondStore(selectPersons);
 
+  // Edit state
+  const [editReceive, setEditReceive] = useState<Receive | null>(null);
+
   // Filters
   const [shapeFilter, setShapeFilter] = useState("all");
   const [purityFilter, setPurityFilter] = useState("all");
   const [colorFilter, setColorFilter] = useState("all");
   const [labFilter, setLabFilter] = useState("all");
+
+  const handleEditClose = useCallback((open: boolean) => {
+    if (!open) setEditReceive(null);
+  }, []);
 
   // Reset filters when closing
   const handleOpenChange = useCallback(
@@ -71,6 +80,7 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
         setPurityFilter("all");
         setColorFilter("all");
         setLabFilter("all");
+        setEditReceive(null);
       }
       onOpenChange(val);
     },
@@ -268,6 +278,7 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
                   <TableHead>Purity</TableHead>
                   <TableHead>Color</TableHead>
                   <TableHead>Lab</TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -328,12 +339,34 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7"
+                        onClick={() => setEditReceive(r)}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           )}
         </div>
+
+        {/* Edit Receive Dialog */}
+        {editReceive && kapaan && (
+          <AddReceiveDialog
+            key={editReceive.id}
+            kapaanId={kapaan.id}
+            kapaanNo={kapaan.kapaanNo}
+            receive={editReceive}
+            open={!!editReceive}
+            onOpenChange={handleEditClose}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );
