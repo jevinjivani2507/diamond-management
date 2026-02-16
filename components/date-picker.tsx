@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
 import moment from "moment";
 import { CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,17 +28,19 @@ function DatePickerInner({
   className,
   format = "DD MMM YYYY",
 }: DatePickerProps) {
+  const [open, setOpen] = useState(false);
   const date = value ? moment(value).toDate() : undefined;
 
   const handleSelect = useCallback(
     (day: Date | undefined) => {
       onChange(day ? moment(day).format("YYYY-MM-DD") : "");
+      setOpen(false);
     },
     [onChange]
   );
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
