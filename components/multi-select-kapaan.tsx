@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useCallback, useMemo, useRef, useState } from "react";
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import { memo, useCallback, useMemo, useState } from "react";
+import { Check, ChevronsUpDown, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -29,6 +29,12 @@ function MultiSelectKapaanInner({
   placeholder = "All Kapaans",
 }: MultiSelectKapaanProps) {
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next);
+    if (!next) setSearchQuery("");
+  }, []);
 
   const toggle = useCallback(
     (value: string) => {
@@ -54,8 +60,14 @@ function MultiSelectKapaanInner({
     return selected.map((v) => map.get(v) ?? v);
   }, [selected, options]);
 
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery.trim()) return options;
+    const q = searchQuery.toLowerCase();
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, searchQuery]);
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -88,14 +100,35 @@ function MultiSelectKapaanInner({
           </div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
-        <div className="max-h-56 overflow-y-auto">
-          {options.length === 0 ? (
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        {/* Search input */}
+        <div className="flex items-center gap-2 border-b px-2 py-1.5">
+          <Search className="size-3.5 shrink-0 text-muted-foreground" />
+          <input
+            autoFocus
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search kapaans..."
+            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="rounded-full p-0.5 hover:bg-muted"
+            >
+              <X className="size-3 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+        {/* Options list */}
+        <div className="max-h-52 overflow-y-auto p-1">
+          {filteredOptions.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No kapaans available
+              {options.length === 0 ? "No kapaans available" : "No results found"}
             </p>
           ) : (
-            options.map((opt) => {
+            filteredOptions.map((opt) => {
               const isSelected = selected.includes(opt.value);
               return (
                 <button

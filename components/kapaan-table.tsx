@@ -8,7 +8,7 @@ import {
   type MouseEvent,
 } from "react";
 import moment from "moment";
-import { Diamond, PackageOpen, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Diamond, PackageOpen, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -51,6 +52,7 @@ import { AddReceiveDialog } from "@/components/add-receive-dialog";
 import { ReceiveSheet } from "@/components/receive-sheet";
 import { MultiSelectKapaan } from "@/components/multi-select-kapaan";
 import { DatePicker } from "@/components/date-picker";
+import { cn } from "@/lib/utils";
 
 // ── Memoised Row ───────────────────────────────────────────────────────────
 
@@ -58,7 +60,9 @@ interface KapaanRowProps {
   kapaan: Kapaan;
   personName: string;
   receiveCount: number;
+  isSelected: boolean;
   onRowClick: (kapaan: Kapaan) => void;
+  onToggleSelect: (id: string) => void;
   onAddReceive: (kapaan: Kapaan) => void;
   onEdit: (kapaan: Kapaan) => void;
   onDelete: (kapaan: Kapaan) => void;
@@ -68,7 +72,9 @@ const KapaanRow = memo(function KapaanRow({
   kapaan,
   personName,
   receiveCount,
+  isSelected,
   onRowClick,
+  onToggleSelect,
   onAddReceive,
   onEdit,
   onDelete,
@@ -78,6 +84,14 @@ const KapaanRow = memo(function KapaanRow({
   }, [kapaan, onRowClick]);
 
   const stop = (e: MouseEvent) => e.stopPropagation();
+
+  const handleCheckbox = useCallback(
+    (e: MouseEvent) => {
+      e.stopPropagation();
+      onToggleSelect(kapaan.id);
+    },
+    [kapaan.id, onToggleSelect]
+  );
 
   const handleAddReceive = useCallback(
     (e: MouseEvent) => {
@@ -106,7 +120,28 @@ const KapaanRow = memo(function KapaanRow({
   const formattedDate = moment(kapaan.date).format("DD MMM YYYY");
 
   return (
-    <TableRow className="cursor-pointer" onClick={handleRowClick}>
+    <TableRow
+      className={cn(
+        "cursor-pointer transition-colors",
+        isSelected
+          ? "bg-blue-50 hover:bg-blue-100"
+          : "hover:bg-muted/40"
+      )}
+      onClick={handleRowClick}
+    >
+      {/* Checkbox cell */}
+      <TableCell className="w-10 pr-0" onClick={handleCheckbox}>
+        <div
+          className={cn(
+            "flex size-4 items-center justify-center rounded-[3px] border transition-colors",
+            isSelected
+              ? "bg-primary border-primary text-primary-foreground"
+              : "border-input bg-background hover:border-primary/50"
+          )}
+        >
+          {isSelected && <Check className="size-3" />}
+        </div>
+      </TableCell>
       <TableCell className="font-semibold">{kapaan.kapaanNo}</TableCell>
       <TableCell className="text-muted-foreground text-sm">
         {formattedDate}
@@ -178,10 +213,17 @@ function KapaanTableInner() {
   const [viewMode, setViewMode] = useState<ViewMode>("kapaan");
 
   // Kapaan filter state
+  const [kapaanSearch, setKapaanSearch] = useState("");
   const [selectedKapaanIds, setSelectedKapaanIds] = useState<string[]>([]);
   const [personFilter, setPersonFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
+  // Row selection state (kapaan view)
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+
+  // Row selection state (received view)
+  const [selectedRcvIds, setSelectedRcvIds] = useState<Set<string>>(new Set());
 
   // Receive filter state
   const [rcvShapeFilter, setRcvShapeFilter] = useState("all");
@@ -226,12 +268,14 @@ function KapaanTableInner() {
   }, [receives]);
 
   const hasFilters =
+    kapaanSearch !== "" ||
     selectedKapaanIds.length > 0 ||
     personFilter !== "all" ||
     dateFrom !== "" ||
     dateTo !== "";
 
   const clearFilters = useCallback(() => {
+    setKapaanSearch("");
     setSelectedKapaanIds([]);
     setPersonFilter("all");
     setDateFrom("");
@@ -248,6 +292,8 @@ function KapaanTableInner() {
   // Filtered kapaans
   const filteredKapaans = useMemo(() => {
     return kapaans.filter((k) => {
+      if (kapaanSearch && !k.kapaanNo.toLowerCase().includes(kapaanSearch.toLowerCase()))
+        return false;
       if (selectedKapaanNos && !selectedKapaanNos.has(k.kapaanNo))
         return false;
       if (personFilter !== "all" && k.personId !== personFilter) return false;
@@ -255,9 +301,63 @@ function KapaanTableInner() {
       if (dateTo && k.date > dateTo) return false;
       return true;
     });
-  }, [kapaans, selectedKapaanNos, personFilter, dateFrom, dateTo]);
+  }, [kapaans, kapaanSearch, selectedKapaanNos, personFilter, dateFrom, dateTo]);
+
+  // ── Row selection ───────────────────────────────────────────────────────
+
+  const handleToggleRow = useCallback((id: string) => {
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const allFilteredSelected =
+    filteredKapaans.length > 0 &&
+    filteredKapaans.every((k) => selectedRowIds.has(k.id));
+
+  const someFilteredSelected =
+    !allFilteredSelected && filteredKapaans.some((k) => selectedRowIds.has(k.id));
+
+  const handleSelectAll = useCallback(() => {
+    if (allFilteredSelected) {
+      setSelectedRowIds((prev) => {
+        const next = new Set(prev);
+        filteredKapaans.forEach((k) => next.delete(k.id));
+        return next;
+      });
+    } else {
+      setSelectedRowIds((prev) => {
+        const next = new Set(prev);
+        filteredKapaans.forEach((k) => next.add(k.id));
+        return next;
+      });
+    }
+  }, [allFilteredSelected, filteredKapaans]);
+
+  // Selection totals (only visible/filtered rows that are selected)
+  const selectionStats = useMemo(() => {
+    const selected = filteredKapaans.filter((k) => selectedRowIds.has(k.id));
+    return {
+      count: selected.length,
+      totalPcs: selected.reduce((sum, k) => sum + k.pcs, 0),
+      totalWeight: selected.reduce((sum, k) => sum + k.weight, 0),
+    };
+  }, [filteredKapaans, selectedRowIds]);
 
   // ── Receive view logic ──────────────────────────────────────────────────
+
+  // Received row selection handlers (defined here, used after filteredReceives)
+  const handleToggleRcvRow = useCallback((id: string) => {
+    setSelectedRcvIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   // Kapaan lookup map for receive view
   const kapaanMap = useMemo(
@@ -395,7 +495,7 @@ function KapaanTableInner() {
         {viewMode === "kapaan" ? (
           <>
             {/* Kapaan Filters */}
-            <div className="grid grid-cols-4 gap-3 border-b p-4 relative">
+            <div className="border-b p-4 relative">
               {hasFilters && (
                 <Button
                   variant="ghost"
@@ -407,55 +507,107 @@ function KapaanTableInner() {
                   Clear filters
                 </Button>
               )}
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">
-                  Kapaan No.
-                </label>
-                <MultiSelectKapaan
-                  options={kapaanOptions}
-                  selected={selectedKapaanIds}
-                  onChange={setSelectedKapaanIds}
-                  placeholder="All Kapaans"
-                />
-              </div>
+              <div className="grid grid-cols-5 gap-3">
+                {/* Search */}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">Search</label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                    <Input
+                      value={kapaanSearch}
+                      onChange={(e) => setKapaanSearch(e.target.value)}
+                      placeholder="Kapaan No..."
+                      className="pl-8 h-9 pr-7"
+                    />
+                    {kapaanSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setKapaanSearch("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 hover:bg-muted"
+                      >
+                        <X className="size-3 text-muted-foreground" />
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Person</label>
-                <Select value={personFilter} onValueChange={setPersonFilter}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {persons.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">
+                    Kapaan No.
+                  </label>
+                  <MultiSelectKapaan
+                    options={kapaanOptions}
+                    selected={selectedKapaanIds}
+                    onChange={setSelectedKapaanIds}
+                    placeholder="All Kapaans"
+                  />
+                </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">
-                  Date From
-                </label>
-                <DatePicker
-                  value={dateFrom}
-                  onChange={setDateFrom}
-                  placeholder="From"
-                />
-              </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">Person</label>
+                  <Select value={personFilter} onValueChange={setPersonFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      {persons.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Date To</label>
-                <DatePicker
-                  value={dateTo}
-                  onChange={setDateTo}
-                  placeholder="To"
-                />
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">
+                    Date From
+                  </label>
+                  <DatePicker
+                    value={dateFrom}
+                    onChange={setDateFrom}
+                    placeholder="From"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">Date To</label>
+                  <DatePicker
+                    value={dateTo}
+                    onChange={setDateTo}
+                    placeholder="To"
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Selection summary bar */}
+            {selectionStats.count > 0 && (
+              <div className="flex items-center justify-between border-b bg-blue-50 px-4 py-2">
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="font-medium text-blue-700">
+                    {selectionStats.count} row{selectionStats.count !== 1 ? "s" : ""} selected
+                  </span>
+                  <span className="text-blue-600/70">|</span>
+                  <span className="text-blue-700">
+                    Total Pcs: <span className="font-semibold">{selectionStats.totalPcs}</span>
+                  </span>
+                  <span className="text-blue-600/70">|</span>
+                  <span className="text-blue-700">
+                    Total Weight: <span className="font-semibold">{selectionStats.totalWeight.toFixed(2)} ct</span>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRowIds(new Set())}
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 transition-colors"
+                >
+                  <X className="size-3" />
+                  Clear selection
+                </button>
+              </div>
+            )}
 
             {/* Kapaan Content */}
             {!hydrated ? (
@@ -489,6 +641,28 @@ function KapaanTableInner() {
                 </TableCaption>
                 <TableHeader>
                   <TableRow>
+                    {/* Select all checkbox */}
+                    <TableHead className="w-10 pr-0">
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={handleSelectAll}
+                        onKeyDown={(e) => e.key === "Enter" && handleSelectAll()}
+                        className={cn(
+                          "flex size-4 cursor-pointer items-center justify-center rounded-[3px] border transition-colors",
+                          allFilteredSelected
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : someFilteredSelected
+                              ? "bg-primary/20 border-primary/60"
+                              : "border-input bg-background hover:border-primary/50"
+                        )}
+                      >
+                        {allFilteredSelected && <Check className="size-3" />}
+                        {someFilteredSelected && (
+                          <div className="size-2 rounded-[1px] bg-primary" />
+                        )}
+                      </div>
+                    </TableHead>
                     <TableHead>Kapaan No.</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Pcs</TableHead>
@@ -501,7 +675,7 @@ function KapaanTableInner() {
                 <TableBody>
                   {filteredKapaans.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-32">
+                      <TableCell colSpan={8} className="h-32">
                         <div className="flex flex-col items-center justify-center gap-1">
                           <PackageOpen className="size-8 text-muted-foreground/50" />
                           <p className="text-sm font-medium text-muted-foreground">
@@ -520,7 +694,9 @@ function KapaanTableInner() {
                         kapaan={k}
                         personName={personMap.get(k.personId) ?? "Unknown"}
                         receiveCount={receiveCountMap.get(k.id) ?? 0}
+                        isSelected={selectedRowIds.has(k.id)}
                         onRowClick={handleRowClick}
+                        onToggleSelect={handleToggleRow}
                         onAddReceive={handleAddReceive}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
@@ -645,103 +821,202 @@ function KapaanTableInner() {
                     : "Add receives from the Kapaan view to see them here."}
                 </p>
               </div>
-            ) : (
-              <Table>
-                <TableCaption className="mb-4">
-                  All receive entries &middot; {filteredReceives.length} total
-                </TableCaption>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Kapaan No.</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Shape</TableHead>
-                    <TableHead className="text-right">Pcs</TableHead>
-                    <TableHead className="text-right">Weight (ct)</TableHead>
-                    <TableHead>Purity</TableHead>
-                    <TableHead>Color</TableHead>
-                    <TableHead>Lab</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredReceives.map((r) => {
-                    const rKapaan = kapaanMap.get(r.kapaanId);
-                    return (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-semibold">
-                          {rKapaan?.kapaanNo ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {r.date
-                            ? moment(r.date).format("DD MMM YYYY")
-                            : "—"}
-                        </TableCell>
-                        <TableCell>
-                          {r.shape ? (
-                            <span
-                              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
-                                shapeColors[r.shape] ??
-                                "bg-gray-50 text-gray-700 border-gray-200"
-                              }`}
-                            >
-                              {r.shape}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {r.pcs || "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {r.weight ? r.weight.toFixed(2) : "—"}
-                        </TableCell>
-                        <TableCell>
-                          {r.purity ? (
-                            <Badge variant="outline">{r.purity}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {r.color ? (
-                            <Badge variant="secondary">{r.color}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {r.lab ? (
-                            <Badge
-                              className={
-                                r.lab === "GIA"
-                                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              }
-                              variant="outline"
-                            >
-                              {r.lab}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7"
-                            onClick={() => setEditReceiveTarget(r)}
+            ) : (() => {
+              const allRcvSelected =
+                filteredReceives.length > 0 &&
+                filteredReceives.every((r) => selectedRcvIds.has(r.id));
+              const someRcvSelected =
+                !allRcvSelected && filteredReceives.some((r) => selectedRcvIds.has(r.id));
+              const selectedRcv = filteredReceives.filter((r) => selectedRcvIds.has(r.id));
+              const rcvStats = {
+                count: selectedRcv.length,
+                totalPcs: selectedRcv.reduce((sum, r) => sum + (r.pcs || 0), 0),
+                totalWeight: selectedRcv.reduce((sum, r) => sum + (r.weight || 0), 0),
+              };
+              const handleRcvSelectAll = () => {
+                if (allRcvSelected) {
+                  setSelectedRcvIds((prev) => {
+                    const next = new Set(prev);
+                    filteredReceives.forEach((r) => next.delete(r.id));
+                    return next;
+                  });
+                } else {
+                  setSelectedRcvIds((prev) => {
+                    const next = new Set(prev);
+                    filteredReceives.forEach((r) => next.add(r.id));
+                    return next;
+                  });
+                }
+              };
+              return (
+                <>
+                  {/* Received selection summary bar */}
+                  {rcvStats.count > 0 && (
+                    <div className="flex items-center justify-between border-b bg-blue-50 px-4 py-2">
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="font-medium text-blue-700">
+                          {rcvStats.count} row{rcvStats.count !== 1 ? "s" : ""} selected
+                        </span>
+                        <span className="text-blue-600/70">|</span>
+                        <span className="text-blue-700">
+                          Total Pcs: <span className="font-semibold">{rcvStats.totalPcs}</span>
+                        </span>
+                        <span className="text-blue-600/70">|</span>
+                        <span className="text-blue-700">
+                          Total Weight: <span className="font-semibold">{rcvStats.totalWeight.toFixed(2)} ct</span>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRcvIds(new Set())}
+                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 transition-colors"
+                      >
+                        <X className="size-3" />
+                        Clear selection
+                      </button>
+                    </div>
+                  )}
+                  <Table>
+                    <TableCaption className="mb-4">
+                      All receive entries &middot; {filteredReceives.length} total
+                    </TableCaption>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10 pr-0">
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={handleRcvSelectAll}
+                            onKeyDown={(e) => e.key === "Enter" && handleRcvSelectAll()}
+                            className={cn(
+                              "flex size-4 cursor-pointer items-center justify-center rounded-[3px] border transition-colors",
+                              allRcvSelected
+                                ? "bg-primary border-primary text-primary-foreground"
+                                : someRcvSelected
+                                  ? "bg-primary/20 border-primary/60"
+                                  : "border-input bg-background hover:border-primary/50"
+                            )}
                           >
-                            <Pencil className="size-3.5" />
-                          </Button>
-                        </TableCell>
+                            {allRcvSelected && <Check className="size-3" />}
+                            {someRcvSelected && (
+                              <div className="size-2 rounded-[1px] bg-primary" />
+                            )}
+                          </div>
+                        </TableHead>
+                        <TableHead>Kapaan No.</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Shape</TableHead>
+                        <TableHead className="text-right">Pcs</TableHead>
+                        <TableHead className="text-right">Weight (ct)</TableHead>
+                        <TableHead>Purity</TableHead>
+                        <TableHead>Color</TableHead>
+                        <TableHead>Lab</TableHead>
+                        <TableHead className="w-10"></TableHead>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
+                    </TableHeader>
+                    <TableBody>
+                      {filteredReceives.map((r) => {
+                        const rKapaan = kapaanMap.get(r.kapaanId);
+                        const isRcvSelected = selectedRcvIds.has(r.id);
+                        return (
+                          <TableRow
+                            key={r.id}
+                            className={cn(
+                              "transition-colors",
+                              isRcvSelected ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-muted/40"
+                            )}
+                          >
+                            <TableCell
+                              className="w-10 pr-0 cursor-pointer"
+                              onClick={() => handleToggleRcvRow(r.id)}
+                            >
+                              <div
+                                className={cn(
+                                  "flex size-4 items-center justify-center rounded-[3px] border transition-colors",
+                                  isRcvSelected
+                                    ? "bg-primary border-primary text-primary-foreground"
+                                    : "border-input bg-background hover:border-primary/50"
+                                )}
+                              >
+                                {isRcvSelected && <Check className="size-3" />}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-semibold">
+                              {rKapaan?.kapaanNo ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {r.date
+                                ? moment(r.date).format("DD MMM YYYY")
+                                : "—"}
+                            </TableCell>
+                            <TableCell>
+                              {r.shape ? (
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
+                                    shapeColors[r.shape] ??
+                                    "bg-gray-50 text-gray-700 border-gray-200"
+                                  }`}
+                                >
+                                  {r.shape}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {r.pcs || "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {r.weight ? r.weight.toFixed(2) : "—"}
+                            </TableCell>
+                            <TableCell>
+                              {r.purity ? (
+                                <Badge variant="outline">{r.purity}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {r.color ? (
+                                <Badge variant="secondary">{r.color}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {r.lab ? (
+                                <Badge
+                                  className={
+                                    r.lab === "GIA"
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  }
+                                  variant="outline"
+                                >
+                                  {r.lab}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                onClick={() => setEditReceiveTarget(r)}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </>
+              );
+            })()}
           </>
         )}
       </div>

@@ -42,7 +42,21 @@ const PURITIES = [
   "I2",
 ] as const;
 
-const COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M"] as const;
+const COLORS = [
+  "D",
+  "E",
+  "F",
+  "G",
+  "H",
+  "I",
+  "J",
+  "K",
+  "L",
+  "M",
+  "YELLOW",
+  "BROWN",
+  "DARK BROWN",
+] as const;
 
 const LABS = ["IGI", "GIA"] as const;
 
@@ -180,11 +194,7 @@ function AddReceiveDialogInner({
                   <CalendarDays className="inline size-3.5 mr-1 -mt-0.5" />
                   Date
                 </Label>
-                <DatePicker
-                  value={date}
-                  onChange={setDate}
-                  className="h-10"
-                />
+                <DatePicker value={date} onChange={setDate} className="h-10" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
