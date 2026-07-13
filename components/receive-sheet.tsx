@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useMemo, useState } from "react";
 import moment from "moment";
-import { Filter, Pencil, X } from "lucide-react";
+import { Filter, Pencil, Trash2, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -25,6 +25,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,9 +68,12 @@ const shapeColors: Record<string, string> = {
 function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
   const allReceives = useDiamondStore(selectReceives);
   const persons = useDiamondStore(selectPersons);
+  const removeReceive = useDiamondStore((s) => s.removeReceive);
 
   // Edit state
   const [editReceive, setEditReceive] = useState<Receive | null>(null);
+  // Delete state
+  const [deleteReceive, setDeleteReceive] = useState<Receive | null>(null);
 
   // Filters
   const [shapeFilter, setShapeFilter] = useState("all");
@@ -72,6 +85,11 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
     if (!open) setEditReceive(null);
   }, []);
 
+  const confirmDelete = useCallback(() => {
+    if (deleteReceive) removeReceive(deleteReceive.id);
+    setDeleteReceive(null);
+  }, [deleteReceive, removeReceive]);
+
   // Reset filters when closing
   const handleOpenChange = useCallback(
     (val: boolean) => {
@@ -81,6 +99,7 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
         setColorFilter("all");
         setLabFilter("all");
         setEditReceive(null);
+        setDeleteReceive(null);
       }
       onOpenChange(val);
     },
@@ -278,7 +297,7 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
                   <TableHead>Purity</TableHead>
                   <TableHead>Color</TableHead>
                   <TableHead>Lab</TableHead>
-                  <TableHead className="w-10"></TableHead>
+                  <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -340,14 +359,24 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7"
-                        onClick={() => setEditReceive(r)}
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={() => setEditReceive(r)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteReceive(r)}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -367,6 +396,34 @@ function ReceiveSheetInner({ kapaan, open, onOpenChange }: ReceiveSheetProps) {
             onOpenChange={handleEditClose}
           />
         )}
+
+        {/* Delete Receive Confirmation */}
+        <AlertDialog
+          open={!!deleteReceive}
+          onOpenChange={(val) => !val && setDeleteReceive(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Receive?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete this receive entry
+                {deleteReceive?.date
+                  ? ` from ${moment(deleteReceive.date).format("DD MMM YYYY")}`
+                  : ""}
+                . This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );

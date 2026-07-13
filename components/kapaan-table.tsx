@@ -340,12 +340,23 @@ function KapaanTableInner() {
   // Selection totals (only visible/filtered rows that are selected)
   const selectionStats = useMemo(() => {
     const selected = filteredKapaans.filter((k) => selectedRowIds.has(k.id));
+    const selectedIds = new Set(selected.map((k) => k.id));
+    let receivedPcs = 0;
+    let receivedWeight = 0;
+    for (const r of receives) {
+      if (selectedIds.has(r.kapaanId)) {
+        receivedPcs += r.pcs || 0;
+        receivedWeight += r.weight || 0;
+      }
+    }
     return {
       count: selected.length,
       totalPcs: selected.reduce((sum, k) => sum + k.pcs, 0),
       totalWeight: selected.reduce((sum, k) => sum + k.weight, 0),
+      receivedPcs,
+      receivedWeight,
     };
-  }, [filteredKapaans, selectedRowIds]);
+  }, [filteredKapaans, selectedRowIds, receives]);
 
   // ── Receive view logic ──────────────────────────────────────────────────
 
@@ -596,6 +607,14 @@ function KapaanTableInner() {
                   <span className="text-blue-600/70">|</span>
                   <span className="text-blue-700">
                     Total Weight: <span className="font-semibold">{selectionStats.totalWeight.toFixed(2)} ct</span>
+                  </span>
+                  <span className="text-blue-600/70">|</span>
+                  <span className="text-blue-700">
+                    Received Pcs: <span className="font-semibold">{selectionStats.receivedPcs}</span>
+                  </span>
+                  <span className="text-blue-600/70">|</span>
+                  <span className="text-blue-700">
+                    Received Weight: <span className="font-semibold">{selectionStats.receivedWeight.toFixed(2)} ct</span>
                   </span>
                 </div>
                 <button
